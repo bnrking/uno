@@ -175,3 +175,21 @@ func newPayload(game *model.Game) map[string]interface{} {
 
 	return payload
 }
+
+func getBody(c echo.Context, output *request) error {
+	if err := c.Bind(&output); err != nil {
+		return err
+	}
+	return nil
+}
+
+func getPostParam(c echo.Context, key string) interface{} {
+	req := new(request)
+	getBody(c, req)
+
+	res, ok := (*req)[key]
+	if ok {
+		return res
+	}
+	return nil
+}
