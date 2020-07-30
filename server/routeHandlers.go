@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/jak103/uno/db"
@@ -19,12 +20,12 @@ type request = map[string]interface{}
 
 func setupRoutes(e *echo.Echo) {
 	e.POST("/games", newGame)
-	e.GET("/update", update)
-	e.POST("/startgame", startGame)
-	e.POST("/login/:username", login)
-	e.POST("/joinGame/:game", join)
-	e.POST("/play/:number/:color", play)
-	e.POST("/draw", draw)
+	e.GET("/games/:game", update)
+	e.POST("/games/:game/start", start)
+	e.POST("/login", login)
+	e.POST("/games/:game/join", join)
+	e.POST("/games/:game/play", play)
+	e.POST("/games/:game/draw", draw)
 }
 
 func newGame(c echo.Context) error {
@@ -37,7 +38,7 @@ func newGame(c echo.Context) error {
 }
 
 func login(c echo.Context) error {
-	username := c.Param("username")
+	username := getPostParam(c, "username").(string)
 
 	database, err := db.GetDb()
 	if err != nil {
@@ -71,16 +72,37 @@ func join(c echo.Context) error {
 		return c.JSONPretty(http.StatusUnauthorized, &Response{false, nil}, " ")
 	}
 
-	game, err := joinGame(c.Param("game"), player)
+	// Get request body.
+	body := make(request)
+	err = getBody(c, &body)
+	if err != nil {
+		return err
+	}
+	// Get password or default it to empty string.
+	var password string
+	rawPassword, ok := body["password"]
+	if !ok {
+		password = ""
+	} else {
+		password = rawPassword.(string)
+	}
+
+	game, err := joinGame(c.Param("game"), player, password)
 
 	if err != nil {
+		var passwordError *InvalidPasswordError
+		if errors.As(err, &passwordError) {
+			return c.JSONPretty(http.StatusBadRequest, map[string]interface{}{
+				"error": "Invalid password.",
+			}, " ")
+		}
 		return err
 	}
 
 	return c.JSONPretty(http.StatusOK, &Response{true, newPayload(game)}, "  ")
 }
 
-func startGame(c echo.Context) error {
+func start(c echo.Context) error {
 	authHeader := c.Request().Header.Get(echo.HeaderAuthorization)
 	player, validPlayer, err := getPlayerFromHeader(authHeader)
 
@@ -92,8 +114,17 @@ func startGame(c echo.Context) error {
 		return c.JSONPretty(http.StatusUnauthorized, &Response{false, nil}, " ")
 	}
 
-	dealCards(c.Param("game"), player)
-	return update(c)
+	game, err := startGame(c.Param("game"), player)
+	if err != nil {
+		var playerError *InvalidPlayerError
+		if errors.As(err, &playerError) {
+			return c.JSONPretty(http.StatusForbidden, map[string]interface{}{
+				"error": "You are not a member of this game.",
+			}, " ")
+		}
+		return err
+	}
+	return c.JSONPretty(http.StatusOK, &Response{true, newPayload(game)}, "  ")
 }
 
 func update(c echo.Context) error {
@@ -110,15 +141,18 @@ func update(c echo.Context) error {
 
 	game, err := updateGame(c.Param("game"), player)
 	if err != nil {
+		var playerError *InvalidPlayerError
+		if errors.As(err, &playerError) {
+			return c.JSONPretty(http.StatusForbidden, map[string]interface{}{
+				"error": "You are not a member of this game.",
+			}, " ")
+		}
 		return err
 	}
 	return c.JSONPretty(http.StatusOK, &Response{true, newPayload(game)}, "  ")
 }
 
 func play(c echo.Context) error {
-	// TODO Cards have a value, which can include skip, reverse, etc
-	card := model.Card{Value: c.Param("number"), Color: c.Param("color")}
-
 	authHeader := c.Request().Header.Get(echo.HeaderAuthorization)
 	player, validPlayer, err := getPlayerFromHeader(authHeader)
 
@@ -129,6 +163,13 @@ func play(c echo.Context) error {
 	if !validPlayer {
 		return c.JSONPretty(http.StatusUnauthorized, &Response{false, nil}, " ")
 	}
+
+	body := make(request)
+	err = getBody(c, &body)
+	if err != nil {
+		return err
+	}
+	card := model.Card{Value: body["value"].(string), Color: body["color"].(string)}
 
 	game, err := playCard(c.Param("game"), player, card)
 

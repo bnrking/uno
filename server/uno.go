@@ -7,6 +7,23 @@ import (
 	"github.com/jak103/uno/model"
 )
 
+type InvalidPasswordError struct {
+	Password string
+	Err      error
+}
+
+func (e InvalidPasswordError) Error() string {
+	return e.Err.Error() + ": " + e.Password
+}
+
+type InvalidPlayerError struct {
+	Err error
+}
+
+func (e InvalidPlayerError) Error() string {
+	return e.Err.Error()
+}
+
 ////////////////////////////////////////////////////////////
 // Utility functions used in place of firebase
 ////////////////////////////////////////////////////////////
@@ -62,9 +79,25 @@ func updateGame(game string, reqPlayer *model.Player) (*model.Game, error) {
 			break
 		}
 	}
-    
+
 	if !found {
-		return nil, errors.New("Player not in game, cannot start")
+		e := errors.New("Player not in game, cannot start")
+		return nil, InvalidPlayerError{Err: e}
+	}
+
+	return gameData, nil
+}
+
+func startGame(game string, player *model.Player) (*model.Game, error) {
+	gameData, err := updateGame(game, player)
+	if err != nil {
+		return nil, err
+	}
+
+	database, err := db.GetDb()
+
+	if err != nil {
+		return nil, err
 	}
 
 	if gameData.Status != "Playing" {
@@ -96,10 +129,18 @@ func createNewGame() (*model.Game, error) {
 	return game, nil
 }
 
-func joinGame(game string, player *model.Player) (*model.Game, error) {
+func joinGame(game string, player *model.Player, password string) (*model.Game, error) {
 	database, err := db.GetDb()
 	if err != nil {
 		return nil, err
+	}
+	gameData, err := database.LookupGameByID(game)
+	if err != nil {
+		return nil, err
+	}
+
+	if password != gameData.Password {
+		return nil, InvalidPasswordError{Password: password, Err: errors.New("Invalid password")}
 	}
 
 	gameData, gameErr := database.JoinGame(game, player.ID)

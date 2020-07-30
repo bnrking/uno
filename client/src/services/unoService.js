@@ -5,8 +5,8 @@ export default {
         BaseService.defaults.headers.common['Authorization'] = `Bearer ${token}`;
     },
 
-    async login(userName) {
-        return BaseService.post(`/login/${userName}`);
+    async login(username) {
+        return BaseService.post(`/login/`, {username});
     },
 
     async newGame() {
@@ -17,19 +17,23 @@ export default {
         return BaseService.post(`/games/`, {name})
     },
 
-    update() {
-        return BaseService.get(`/update`);
+    update(game) {
+        return BaseService.get(`/games/${game}`);
     },
 
-    startGame() {
-        return BaseService.post(`/startgame`);
+    startGame(game) {
+        return BaseService.post(`/games/${game}/start`);
     },
 
-    playCard(cardNumber, cardColor) {
-        return BaseService.post(`/play/${cardNumber}/${cardColor}`);
+    playCard(game, cardNumber, cardColor) {
+        return BaseService.post(`/games/${game}/play`, {number: cardNumber, color: cardColor});
     },
 
-    drawCard() {
-        return BaseService.post(`/draw`);
+    drawCard(game) {
+        return BaseService.post(`/games/${game}/draw`);
+    },
+
+    joinGame(game, password) {
+        return BaseService.post(`/games/${game}/join`, {password});
     }
 }
