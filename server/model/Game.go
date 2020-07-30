@@ -19,4 +19,6 @@ type Game struct {
 	CurrentPlayer int        `bson:"current_player,omitempty" json:"current_player"`
 	Status        GameStatus `bson:"status,omitempty" json:"status"`
 	Direction     bool       `bson:"direction,omitempty" json:"direction"`
+	Host          string     `bson:"host,omitempty" json:"host"`
+	Name          string     `bson:"name,omitempty" json:"name"`
 }
