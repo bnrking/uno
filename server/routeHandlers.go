@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/jak103/uno/db"
@@ -29,16 +30,55 @@ func setupRoutes(e *echo.Echo) {
 }
 
 func newGame(c echo.Context) error {
-	game, gameErr := createNewGame()
+	authHeader := c.Request().Header.Get(echo.HeaderAuthorization)
+	player, validPlayer, err := getPlayerFromHeader(authHeader)
+
+	if err != nil {
+		return err
+	}
+
+	if !validPlayer {
+		return c.JSONPretty(http.StatusUnauthorized, &Response{false, nil}, " ")
+	}
+
+	// Get request body.
+	body := make(request)
+	err = getBody(c, &body)
+	if err != nil {
+		return err
+	}
+	// Get password or default it to empty string.
+	var password string
+	rawPassword, ok := body["password"]
+	if !ok {
+		password = ""
+	} else {
+		password = rawPassword.(string)
+	}
+	// Get name or default it to "NAME's game"
+	var name string
+	rawName, ok := body["name"]
+	if !ok {
+		name = player.Name + "'s Game"
+	} else {
+		name = rawName.(string)
+	}
+
+	game, gameErr := createNewGame(player, password, name)
 
 	if gameErr != nil {
 		return gameErr
 	}
-	return c.JSONPretty(http.StatusOK, &Response{true, newPayload(game)}, "  ")
+	c.Response().Header().Set(echo.HeaderLocation, "/games/"+game.ID)
+	return c.JSONPretty(http.StatusCreated, &Response{true, newPayload(game)}, "  ")
 }
 
 func login(c echo.Context) error {
-	username := getPostParam(c, "username").(string)
+	rawUsername := getPostParam(c, "username")
+	if rawUsername == nil {
+		return errors.New("Empty username")
+	}
+	username := rawUsername.(string)
 
 	database, err := db.GetDb()
 	if err != nil {
@@ -50,6 +90,7 @@ func login(c echo.Context) error {
 	if playerErr != nil {
 		return playerErr
 	}
+	fmt.Println(player.ID)
 
 	token, err := newJWT(username, player.ID)
 
@@ -116,8 +157,7 @@ func start(c echo.Context) error {
 
 	game, err := startGame(c.Param("game"), player)
 	if err != nil {
-		var playerError *InvalidPlayerError
-		if errors.As(err, &playerError) {
+		if _, ok := err.(*InvalidPlayerError); ok {
 			return c.JSONPretty(http.StatusForbidden, map[string]interface{}{
 				"error": "You are not a member of this game.",
 			}, " ")
@@ -139,10 +179,9 @@ func update(c echo.Context) error {
 		return c.JSONPretty(http.StatusUnauthorized, &Response{false, nil}, " ")
 	}
 
-	game, err := updateGame(c.Param("game"), player)
+	game, err := startGame(c.Param("game"), player)
 	if err != nil {
-		var playerError *InvalidPlayerError
-		if errors.As(err, &playerError) {
+		if _, ok := err.(*InvalidPlayerError); ok {
 			return c.JSONPretty(http.StatusForbidden, map[string]interface{}{
 				"error": "You are not a member of this game.",
 			}, " ")
@@ -213,22 +252,27 @@ func newPayload(game *model.Game) map[string]interface{} {
 	payload["discard_pile"] = game.DiscardPile
 	payload["game_id"] = game.ID
 	payload["game_over"] = game.Status == "Finished"
+	payload["host"] = game.Host
+	payload["name"] = game.Name
 
 	return payload
 }
 
 func getBody(c echo.Context, output *request) error {
-	if err := c.Bind(&output); err != nil {
+	if err := c.Bind(output); err != nil {
 		return err
 	}
 	return nil
 }
 
 func getPostParam(c echo.Context, key string) interface{} {
-	req := new(request)
-	getBody(c, req)
+	req := make(request)
+	err := getBody(c, &req)
+	if err != nil {
+		fmt.Println(err)
+	}
 
-	res, ok := (*req)[key]
+	res, ok := req[key]
 	if ok {
 		return res
 	}

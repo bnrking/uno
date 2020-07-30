@@ -134,6 +134,7 @@ export default {
     setInterval(() => {
       this.updateData();
     }, 2000);
+    this.game_id = this.$route.params.gameid;
   }
 };
 </script>

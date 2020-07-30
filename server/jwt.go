@@ -2,11 +2,13 @@ package main
 
 import (
 	//"fmt"
+	"fmt"
+	"strings"
 	"time"
-    "strings"
+
 	"github.com/dgrijalva/jwt-go"
-    "github.com/jak103/uno/db"
-    "github.com/jak103/uno/model"
+	"github.com/jak103/uno/db"
+	"github.com/jak103/uno/model"
 	//"github.com/google/uuid"
 )
 
@@ -55,7 +57,7 @@ func newJWT(name string, userid string) (string, error) {
 	token := jwt.New(jwt.SigningMethodHS256)
 
 	// Set some claims
-	token.Claims = jwt.MapClaims {
+	token.Claims = jwt.MapClaims{
 		// this 72 should make it expire in 72 hours, which is reasonable (a game of uno shouldn't take longer than 3 days)
 		"exp": time.Now().Add(time.Hour * 72).Unix(),
 		// this iat is the "iniated at time"
@@ -65,7 +67,7 @@ func newJWT(name string, userid string) (string, error) {
 		"userid": userid,
 	}
 	// Sign and get the complete encoded token as a string
-	tokenString, err := token.SignedString( []byte(signKey) )
+	tokenString, err := token.SignedString([]byte(signKey))
 	return tokenString, err
 }
 
@@ -110,21 +112,21 @@ func getValidClaims(myToken string) (jwt.MapClaims, bool) {
 
 // function that gets JWT from auth header
 func getValidClaimsFromHeader(authHeader string) (jwt.MapClaims, bool) {
-    
+
 	if authHeader == "" {
-        // no authorization at all... obviously not authorized
-        var c jwt.MapClaims
-        return c, false
-    }
-    
-    bearerAndToken := strings.Fields(authHeader) // we should get ["bearer" "encodedToken"]
-    
-    //authType := bearerAndToken[0] // I don't think we actually need this...
-    
-    encodedToken := bearerAndToken[1]
-    
+		// no authorization at all... obviously not authorized
+		var c jwt.MapClaims
+		return c, false
+	}
+
+	bearerAndToken := strings.Fields(authHeader) // we should get ["bearer" "encodedToken"]
+
+	//authType := bearerAndToken[0] // I don't think we actually need this...
+
+	encodedToken := bearerAndToken[1]
+
 	claims, valid := getValidClaims(encodedToken)
-    
+
 	// return the claims (empty if invalid), and a flag indicating if the claims (token) are valid
 	return claims, valid
 
@@ -133,29 +135,31 @@ func getValidClaimsFromHeader(authHeader string) (jwt.MapClaims, bool) {
 // function that simply creates a JWT payload.
 func makeJWTPayload(EncodedJWT string) map[string]interface{} {
 	payload := make(map[string]interface{})
-    payload["JWT"] = EncodedJWT
+	payload["JWT"] = EncodedJWT
 
 	return payload
 }
 
-func getPlayerFromHeader(authHeader string) (*model.Player, bool, error){
-    database, err := db.GetDb()
+func getPlayerFromHeader(authHeader string) (*model.Player, bool, error) {
+	database, err := db.GetDb()
 	if err != nil {
 		return nil, false, err
 	}
-    
-    claims, validUser := getValidClaimsFromHeader(authHeader)
-    
-    if !validUser {
-        return nil, false, err
-    }
-    
-    player, err := database.LookupPlayer(claims["userid"].(string))
+
+	claims, validUser := getValidClaimsFromHeader(authHeader)
+
+	if !validUser {
+		return nil, false, err
+	}
+
+	fmt.Println("Looking up player with ID " + claims["userid"].(string))
+
+	player, err := database.LookupPlayer(claims["userid"].(string))
 
 	if err != nil {
 		return nil, false, err
 	}
-    
-    return player, validUser, err
-    
+
+	return player, validUser, err
+
 }

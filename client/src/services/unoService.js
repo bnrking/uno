@@ -13,7 +13,7 @@ export default {
         return BaseService.post(`/games/`);
     },
 
-    async newGame(name) {
+    async newGameWithName(name) {
         return BaseService.post(`/games/`, {name})
     },
 

@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/jak103/uno/db"
 	"github.com/jak103/uno/model"
@@ -113,14 +114,25 @@ func startGame(game string, player *model.Player) (*model.Game, error) {
 	return gameData, nil
 }
 
-func createNewGame() (*model.Game, error) {
+func createNewGame(player *model.Player, password string, name string) (*model.Game, error) {
 	database, err := db.GetDb()
 
 	if err != nil {
 		return nil, err
 	}
 
+	if player == nil {
+		panic("Player should not be nil")
+	}
+	fmt.Println(player)
+
 	game, err := database.CreateGame()
+	game.Host = player.ID
+	game.Name = name
+	game.Password = password
+	fmt.Println("Setting game host to " + player.ID)
+	database.SaveGame(*game)
+	database.JoinGame(game.ID, player.ID)
 
 	if err != nil {
 		return nil, err

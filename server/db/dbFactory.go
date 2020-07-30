@@ -25,9 +25,9 @@ type DB struct {
 
 // GetDb factory method to get the Database connection
 func GetDb() (*DB, error) {
-	fmt.Println("Connecting to the database...")
-
 	if connectedDB == nil {
+		fmt.Println("Connecting to the database...")
+
 		environment := strings.ToUpper(os.Getenv("DB_TYPE"))
 
 		if environment == "" {
