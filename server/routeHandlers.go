@@ -117,7 +117,7 @@ func update(c echo.Context) error {
 
 func play(c echo.Context) error {
 	// TODO Cards have a value, which can include skip, reverse, etc
-	card := model.Card{c.Param("number"), c.Param("color")}
+	card := model.Card{Value: c.Param("number"), Color: c.Param("color")}
 
 	authHeader := c.Request().Header.Get(echo.HeaderAuthorization)
 	player, validPlayer, err := getPlayerFromHeader(authHeader)
