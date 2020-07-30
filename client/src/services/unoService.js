@@ -10,7 +10,7 @@ export default {
     },
 
     async newGame() {
-        return BaseService.get(`/newgame/`);
+        return BaseService.post(`/games/`);
     },
 
     update() {
